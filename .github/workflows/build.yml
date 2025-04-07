@@ -1,0 +1,29 @@
+name: Build IPLocation Library
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        board: [esp32dev, d1_mini]  # ESP32 and ESP8266
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install PlatformIO
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install platformio
+
+    - name: Build IPLocation for ${{ matrix.board }}
+      run: |
+        platformio run -d examples/BasicUsage -e ${{ matrix.board }}
+
+    - name: Show disk usage
+      run: du -sh . || true

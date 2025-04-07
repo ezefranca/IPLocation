@@ -1,0 +1,8 @@
+IPLocation	KEYWORD1
+IPLocationResult	KEYWORD1
+fetch	KEYWORD2
+getResult	KEYWORD2
+getLastError	KEYWORD2
+setQuery	KEYWORD2
+setFields	KEYWORD2
+setLanguage	KEYWORD2

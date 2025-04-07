@@ -1,0 +1,10 @@
+name=IPLocation
+version=1.0.0
+author=Ezequiel Santos <ezefranca.com@gmail.com>
+maintainer=Ezequiel Santos <ezefranca.com@gmail.com>
+sentence=Simple Arduino library to fetch IP geolocation data using ip-api.com
+paragraph=This library uses the free ip-api.com service to retrieve IP geolocation information like country, city, latitude, longitude, timezone, and more. Supports ESP32 and ESP8266.
+category=Communication
+url=https://github.com/ezefranca/IPLocation
+architectures=esp32, esp8266
+includes=IPLocation.h
