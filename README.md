@@ -1,4 +1,4 @@
-# IPLocation
+# IPLocation [![Build and Run C++ IPLocation](https://github.com/ezefranca/IPLocation/actions/workflows/build.yml/badge.svg)](https://github.com/ezefranca/IPLocation/actions/workflows/build.yml)
 
 A simple Arduino library to fetch geolocation information from your IP address using the [ip-api.com](http://ip-api.com) service.
 
