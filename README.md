@@ -47,12 +47,12 @@ void setup() {
 
 ## API Reference
 ```cpp
-	•	setQuery(String ipOrDomain)
-	•	setFields(String fieldsListOrCode)
-	•	setLanguage(String langCode)
-	•	fetch() // performs the HTTP query
-	•	getResult() // returns a IPLocationResult object
-	•	getLastError() // returns a string if something goes wrong
+setQuery(String ipOrDomain)
+setFields(String fieldsListOrCode)
+setLanguage(String langCode)
+fetch() // performs the HTTP query
+getResult() // returns a IPLocationResult object
+getLastError() // returns a string if something goes wrong
 ```
 
 
