@@ -13,7 +13,7 @@ jobs:
 
       - name: Compile IPLocation C++ (no Arduino)
         run: |
-          g++ examples/CppUsage/main.cpp src/IPLocation.cpp -o iplocation -std=c++17
+          g++ -std=c++17 -I./src examples/CppUsage/main.cpp src/IPLocation.cpp -o iplocation
 
       - name: Get public IP
         id: ip
