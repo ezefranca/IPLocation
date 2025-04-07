@@ -1,29 +1,26 @@
-name: Build IPLocation Library
+name: Build and Run C++ IPLocation
 
 on:
   push:
   pull_request:
 
 jobs:
-  build:
+  test-desktop:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        board: [esp32dev, d1_mini]  # ESP32 and ESP8266
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Install PlatformIO
-      run: |
-        python3 -m pip install --upgrade pip
-        pip install platformio
+      - name: Compile IPLocation C++ (no Arduino)
+        run: |
+          g++ examples/CppUsage/main.cpp src/IPLocation.cpp -o iplocation -std=c++17
 
-    - name: Build IPLocation for ${{ matrix.board }}
-      run: |
-        platformio run -d examples/BasicUsage -e ${{ matrix.board }}
+      - name: Get public IP
+        id: ip
+        run: |
+          echo "ip=$(curl -s ifconfig.me)" >> $GITHUB_OUTPUT
 
-    - name: Show disk usage
-      run: du -sh . || true
+      - name: Run program with current IP
+        run: |
+          echo "Using public IP: ${{ steps.ip.outputs.ip }}"
+          ./iplocation ${{ steps.ip.outputs.ip }}

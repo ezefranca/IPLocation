@@ -1,52 +1,36 @@
 #include "IPLocation.h"
 
+#ifdef ARDUINO
+  #include <WiFiClient.h>
+  #include <HTTPClient.h>
+  #include <ArduinoJson.h>
+
 IPLocation::IPLocation() {}
 
-void IPLocation::setQuery(const String& query) {
-  _query = query;
-}
-
-void IPLocation::setLanguage(const String& lang) {
-  _lang = lang;
-}
-
-void IPLocation::setFields(const String& fields) {
-  _fields = fields;
-}
+void IPLocation::setQuery(const String& query) { _query = query; }
 
 bool IPLocation::fetch() {
+  if (WiFi.status() != WL_CONNECTED) {
+    _lastError = "WiFi not connected";
+    return false;
+  }
+
   HTTPClient http;
   String url = "http://ip-api.com/json/";
-
-  if (_query.length() > 0) {
-    url += _query;
-  }
-
-  url += "?";
-  if (_fields.length() > 0) {
-    url += "fields=" + _fields + "&";
-  }
-  if (_lang.length() > 0) {
-    url += "lang=" + _lang;
-  }
+  if (_query.length()) url += _query;
 
   http.begin(url);
   int httpCode = http.GET();
 
-  if (httpCode > 0) {
-    if (httpCode == HTTP_CODE_OK) {
-      String payload = http.getString();
-      http.end();
-      return parseResponse(payload);
-    } else {
-      _lastError = "HTTP error: " + String(httpCode);
-    }
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    http.end();
+    return parseResponse(payload);
   } else {
-    _lastError = "Connection failed";
+    _lastError = "HTTP error: " + String(httpCode);
+    http.end();
+    return false;
   }
-
-  http.end();
-  return false;
 }
 
 bool IPLocation::parseResponse(const String& payload) {
@@ -58,38 +42,17 @@ bool IPLocation::parseResponse(const String& payload) {
     return false;
   }
 
-  String status = doc["status"] | "fail";
-  if (status != "success") {
-    _lastError = doc["message"] | "unknown error";
+  if (doc["status"] != "success") {
+    _lastError = doc["message"] | "Unknown error";
     return false;
   }
 
   _result.success = true;
-  _result.message = "";
-  _result.continent = doc["continent"] | "";
-  _result.continentCode = doc["continentCode"] | "";
   _result.country = doc["country"] | "";
-  _result.countryCode = doc["countryCode"] | "";
-  _result.region = doc["region"] | "";
-  _result.regionName = doc["regionName"] | "";
   _result.city = doc["city"] | "";
-  _result.district = doc["district"] | "";
-  _result.zip = doc["zip"] | "";
   _result.lat = doc["lat"] | 0.0;
   _result.lon = doc["lon"] | 0.0;
-  _result.timezone = doc["timezone"] | "";
-  _result.offset = doc["offset"] | 0;
-  _result.currency = doc["currency"] | "";
-  _result.isp = doc["isp"] | "";
-  _result.org = doc["org"] | "";
-  _result.asn = doc["as"] | "";
-  _result.asname = doc["asname"] | "";
-  _result.reverse = doc["reverse"] | "";
-  _result.mobile = doc["mobile"] | false;
-  _result.proxy = doc["proxy"] | false;
-  _result.hosting = doc["hosting"] | false;
   _result.query = doc["query"] | "";
-
   return true;
 }
 
@@ -97,6 +60,116 @@ IPLocationResult IPLocation::getResult() {
   return _result;
 }
 
-String IPLocation::getLastError() {
-  return _lastError;
+String IPLocation::getLastError() { return _lastError; }
+
+#else
+  // ===== Desktop version using raw sockets + simple parsing =====
+  #include <netdb.h>
+  #include <unistd.h>
+  #include <sstream>
+  #include <cstring>
+  #include <iostream>
+
+  IPLocation::IPLocation() {}
+
+  void IPLocation::setQuery(const std::string& query) { _query = query; }
+
+  static std::string http_get_socket(const std::string& host, const std::string& path) {
+    int sockfd;
+    struct hostent* server;
+    struct sockaddr_in serv_addr;
+    const int port = 80;
+
+    server = gethostbyname(host.c_str());
+    if (!server) throw std::runtime_error("DNS resolution failed");
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) throw std::runtime_error("Socket creation failed");
+
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+    memcpy(&serv_addr.sin_addr.s_addr, server->h_addr, server->h_length);
+
+    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+      close(sockfd);
+      throw std::runtime_error("Connection failed");
+    }
+
+    std::ostringstream req;
+    req << "GET " << path << " HTTP/1.1\r\n"
+        << "Host: " << host << "\r\n"
+        << "Connection: close\r\n"
+        << "\r\n";
+
+    std::string request = req.str();
+    send(sockfd, request.c_str(), request.length(), 0);
+
+    std::string response;
+    char buffer[1024];
+    ssize_t bytes;
+    while ((bytes = read(sockfd, buffer, sizeof(buffer) - 1)) > 0) {
+      buffer[bytes] = '\0';
+      response += buffer;
+    }
+
+    close(sockfd);
+
+    size_t header_end = response.find("\r\n\r\n");
+    if (header_end == std::string::npos) throw std::runtime_error("Invalid HTTP response");
+
+    return response.substr(header_end + 4);
+  }
+
+  bool IPLocation::fetch() {
+    try {
+      std::string path = "/json";
+      if (!_query.empty()) path += "/" + _query;
+      std::string json = http_get_socket("ip-api.com", path);
+      return parseResponse(json);
+    } catch (const std::exception& e) {
+      _lastError = std::string("Fetch failed: ") + e.what();
+      return false;
+    }
+  }
+
+  bool IPLocation::parseResponse(const std::string& payload) {
+    // ⚠️ MINIMAL JSON parsing: not robust, but works without libraries
+    auto get_val = [&](const std::string& key) -> std::string {
+      size_t start = payload.find("\"" + key + "\":");
+      if (start == std::string::npos) return "";
+      start = payload.find(":", start) + 1;
+      while (start < payload.size() && (payload[start] == ' ' || payload[start] == '\"')) start++;
+      size_t end = payload.find_first_of(",}\"", start);
+      return payload.substr(start, end - start);
+    };
+
+    std::string status = get_val("status");
+    if (status != "success") {
+      _lastError = get_val("message");
+      return false;
+    }
+
+    _result.success = true;
+    _result.country = get_val("country");
+    _result.city = get_val("city");
+    _result.query = get_val("query");
+
+    try {
+      _result.lat = std::stof(get_val("lat"));
+      _result.lon = std::stof(get_val("lon"));
+    } catch (...) {
+      _result.lat = 0.0f;
+      _result.lon = 0.0f;
+    }
+
+    return true;
+  }
+
+IPLocationResult IPLocation::getResult() {
+  return _result;
 }
+
+  std::string IPLocation::getLastError() { return _lastError; }
+
+#endif
